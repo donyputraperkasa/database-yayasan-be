@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  owner
+  office
+  school
+}
+
+enum SchoolLevel {
+  tk_kb
+  sd
+  smp
+  sma_smk
+}
+
+enum EmployeeType {
+  guru
+  pegawai
+}
+
+enum FacilityCondition {
+  baik
+  rusak_ringan
+  rusak_berat
+}
+
+enum FinanceType {
+  spp
+  dpp
+  bos
+  bosda
+  rekening
+}
+
+model Contact {
+  id       String  @id @default(cuid())
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  name     String
+  email    String?
+  message  String  @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@map("contacts")
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String
+  fileUrl   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("documents")
+}
+
+model Employee {
+  id             String       @id @default(cuid())
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  type           EmployeeType @default(guru)
+  position       String?
+  birthPlaceDate String?
+  lastEducation  String?
+  gender         String?
+  status         String?
+  address        String?      @db.Text
+  photoUrl       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employees")
+}
+
+model Facility {
+  id        String            @id @default(cuid())
+  schoolId  String
+  school    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  Int               @default(0)
+  condition FacilityCondition
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("facilities")
+}
+
+model Finance {
+  id        String      @id @default(cuid())
+  schoolId  String
+  school    School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  type      FinanceType
+  className String?
+  amount    Int?
+  accountNo String?
+  balance   Int?
+  date      DateTime?
+  note      String?     @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("finances")
+}
+
+model School {
+  id        String      @id @default(cuid())
+  name      String
+  level     SchoolLevel
+  address   String?
+  phone     String?
+  email     String?
+  principal String?
+
+  users      User[]
+  profile    SchoolProfile?
+  employees  Employee[]
+  students   Student[]
+  assets     SchoolAsset[]
+  facilities Facility[]
+  finances   Finance[]
+  documents  Document[]
+  contacts   Contact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("schools")
+}
+
+model SchoolAsset {
+  id               String  @id @default(cuid())
+  schoolId         String
+  school           School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  landArea         String?
+  certificateOwner String?
+  origin           String?
+  procurementYear  Int?
+  buildingArea     String?
+  photoUrl         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("school_assets")
+}
+
+model SchoolProfile {
+  id       String  @id @default(cuid())
+  schoolId String  @unique
+  school   School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  history  String? @db.Text
+  vision   String? @db.Text
+  mission  String? @db.Text
+  motto    String?
+  photoUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("school_profiles")
+}
+
+model Student {
+  id             String  @id @default(cuid())
+  schoolId       String
+  school         School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  birthPlaceDate String?
+  address        String? @db.Text
+  gender         String?
+  fatherName     String?
+  motherName     String?
+  fatherJob      String?
+  motherJob      String?
+  className      String?
+  sppAmount      Int?
+  photoUrl       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("students")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  schoolId  String?
+  school    School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
