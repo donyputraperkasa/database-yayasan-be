@@ -20,7 +20,11 @@ export class CreateFinanceDto {
   @IsString()
   schoolId?: string;
 
-  @ApiProperty({ enum: FinanceType, example: FinanceType.SPP })
+  @ApiProperty({
+    enum: FinanceType,
+    example: FinanceType.SPP,
+    description: 'Gunakan lain_lain jika kategori belum ada di daftar utama.',
+  })
   @IsEnum(FinanceType)
   type!: FinanceType;
 
@@ -56,7 +60,9 @@ export class CreateFinanceDto {
   @IsDateString()
   date?: string;
 
-  @ApiPropertyOptional({ example: 'Saldo BOS per akhir bulan' })
+  @ApiPropertyOptional({
+    example: 'Saldo BOS per akhir bulan / keterangan untuk kategori lain_lain',
+  })
   @IsOptional()
   @IsString()
   note?: string;

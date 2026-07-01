@@ -28,6 +28,7 @@ export enum FinanceType {
   BOS = 'bos',
   BOSDA = 'bosda',
   REKENING = 'rekening',
+  LAIN_LAIN = 'lain_lain',
 }
 
 export enum Gender {

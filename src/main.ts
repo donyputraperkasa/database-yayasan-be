@@ -31,7 +31,22 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, swaggerDocument, {
     swaggerOptions: {
       tagsSorter: 'alpha',
-      operationsSorter: 'alpha',
+      operationsSorter: (
+        operationA: { get: (key: string) => string },
+        operationB: { get: (key: string) => string },
+      ) => {
+        const methodOrder: Record<string, number> = {
+          post: 1,
+          get: 2,
+          patch: 3,
+          delete: 4,
+        };
+
+        const methodA = operationA.get('method').toLowerCase();
+        const methodB = operationB.get('method').toLowerCase();
+
+        return (methodOrder[methodA] ?? 99) - (methodOrder[methodB] ?? 99);
+      },
     },
   });
 

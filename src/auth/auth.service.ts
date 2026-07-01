@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { BootstrapOwnerDto } from './dto/bootstrap-owner.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class AuthService {
       throw new UnauthorizedException('Email atau password salah');
     }
 
+    // Payload JWT dibuat minimal: cukup untuk identitas, role, dan pembatasan schoolId.
     const payload = {
       sub: user.id,
       email: user.email,
@@ -34,6 +36,7 @@ export class AuthService {
 
     const accessToken = await this.jwtService.signAsync(payload);
 
+    // Data sensitif seperti password tidak dikirim kembali setelah login.
     const safeUser = {
       id: user.id,
       name: user.name,
@@ -52,5 +55,9 @@ export class AuthService {
 
   bootstrapOwner(dto: BootstrapOwnerDto) {
     return this.usersService.createBootstrapOwner(dto);
+  }
+
+  changePassword(userId: string, dto: ChangePasswordDto) {
+    return this.usersService.changePassword(userId, dto);
   }
 }

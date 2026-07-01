@@ -49,6 +49,7 @@ const maxDocumentSize = maxDocumentSizeMb * 1024 * 1024;
 
 const storage: StorageEngine = diskStorage({
   destination: (_request, _file, callback) => {
+    // Folder upload dibuat otomatis agar server baru tetap bisa menerima dokumen.
     if (!existsSync(uploadPath)) {
       mkdirSync(uploadPath, { recursive: true });
     }
@@ -56,6 +57,7 @@ const storage: StorageEngine = diskStorage({
     callback(null, uploadPath);
   },
   filename: (_request, file, callback) => {
+    // Nama file dibersihkan agar aman dipakai sebagai URL publik di folder uploads.
     const safeName = file.originalname
       .replace(extname(file.originalname), '')
       .replace(/[^a-zA-Z0-9-_]/g, '-')
@@ -109,6 +111,7 @@ export class DocumentsController {
       throw new BadRequestException('File wajib diupload');
     }
 
+    // URL relatif ini dipakai frontend untuk membuka file melalui static route /uploads.
     const fileUrl = `/uploads/documents/${file.filename}`;
 
     return this.documentsService.upload(dto, fileUrl, request.user);

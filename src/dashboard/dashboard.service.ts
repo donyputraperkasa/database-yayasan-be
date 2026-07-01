@@ -9,12 +9,14 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getSummary(user: AuthUser) {
+    // Scope sekolah dibuat sekali lalu dipakai semua query summary agar role school tidak bocor data.
     const schoolWhere = this.getSchoolWhere(user);
     const scopedSchoolId = this.getScopedSchoolId(user);
     const schoolScopedWhere = scopedSchoolId
       ? { schoolId: scopedSchoolId }
       : {};
 
+    // Query summary dijalankan paralel karena semua hitungan berdiri sendiri.
     const [
       totalSchools,
       totalStudents,
@@ -113,6 +115,7 @@ export class DashboardService {
   private mapSchoolsByLevel(
     rows: Array<{ level: PrismaSchoolLevel; _count: { _all: number } }>,
   ) {
+    // Response dashboard dibuat stabil meskipun salah satu level sekolah belum punya data.
     return {
       tkKb:
         rows.find((row) => row.level === PrismaSchoolLevel.tk_kb)?._count

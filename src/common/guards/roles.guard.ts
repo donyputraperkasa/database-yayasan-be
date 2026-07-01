@@ -23,6 +23,7 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
+    // JwtAuthGuard mengisi request.user; guard ini hanya memeriksa apakah role-nya sesuai.
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
 

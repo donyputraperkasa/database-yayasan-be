@@ -3,17 +3,20 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Role } from '../common/enums/role.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateUserDto) {
+    // Akun sekolah wajib terhubung ke satu sekolah, sedangkan owner/office bersifat level yayasan.
     if (dto.role === Role.SCHOOL && !dto.schoolId) {
       throw new BadRequestException('schoolId wajib diisi untuk role school');
     }
@@ -44,6 +47,7 @@ export class UsersService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    // Password hanya disimpan dalam bentuk hash dan tidak pernah dikembalikan ke response.
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
@@ -69,6 +73,7 @@ export class UsersService {
   async createBootstrapOwner(
     dto: Pick<CreateUserDto, 'name' | 'email' | 'password'>,
   ) {
+    // Bootstrap owner hanya boleh dipakai saat database benar-benar belum memiliki user.
     const userCount = await this.prisma.user.count();
 
     if (userCount > 0) {
@@ -79,6 +84,43 @@ export class UsersService {
       ...dto,
       role: Role.OWNER,
     });
+  }
+
+  async changePassword(
+    userId: string,
+    dto: { oldPassword: string; newPassword: string },
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User tidak ditemukan');
+    }
+
+    const isOldPasswordValid = await bcrypt.compare(
+      dto.oldPassword,
+      user.password,
+    );
+
+    if (!isOldPasswordValid) {
+      throw new UnauthorizedException('Password lama salah');
+    }
+
+    await this.updatePassword(user.id, dto.newPassword);
+
+    return {
+      message: 'Password berhasil diubah',
+    };
+  }
+
+  async resetPassword(id: string, dto: ResetPasswordDto) {
+    await this.findById(id);
+    await this.updatePassword(id, dto.newPassword);
+
+    return {
+      message: 'Password berhasil direset',
+    };
   }
 
   async findAll() {
@@ -105,5 +147,15 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  private async updatePassword(id: string, password: string) {
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword },
+      omit: { password: true },
+    });
   }
 }

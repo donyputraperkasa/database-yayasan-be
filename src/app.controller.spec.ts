@@ -15,8 +15,8 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('mengembalikan nama API untuk health check sederhana', () => {
+      expect(appController.getHello()).toBe('Database Office API');
     });
   });
 });

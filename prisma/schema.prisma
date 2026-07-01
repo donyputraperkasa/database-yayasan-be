@@ -36,6 +36,7 @@ enum FinanceType {
   bos
   bosda
   rekening
+  lain_lain
 }
 
 model Contact {
@@ -68,13 +69,24 @@ model Employee {
   schoolId       String
   school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name           String
-  type           EmployeeType @default(guru)
-  position       String?
-  birthPlaceDate String?
-  lastEducation  String?
   gender         String?
-  status         String?
+  birthPlaceDate String?
+  birthDate      DateTime?
+  religion       String?
+  lastEducation  String?
   address        String?      @db.Text
+  phone          String?
+  email          String?
+  status         String?
+  decreeNumber   String?
+  joinDate       DateTime?
+  workingPeriod  String?
+  retirementAge  Int?
+  retirementDate DateTime?
+  position       String?
+  otherPosition  String?
+  type           EmployeeType @default(guru)
+  fee            String?
   photoUrl       String?
 
   createdAt DateTime @default(now())
