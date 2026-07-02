@@ -99,6 +99,20 @@ export class AssetsService {
     });
   }
 
+  async uploadPhoto(id: string, photoUrl: string, user: AuthUser) {
+    const asset = await this.findAssetOrThrow(id);
+    this.ensureCanManageAsset(asset.schoolId, user);
+    await this.ensureSchoolCanEdit(asset.schoolId, user);
+
+    return this.prisma.schoolAsset.update({
+      where: { id },
+      data: { photoUrl },
+      include: {
+        school: true,
+      },
+    });
+  }
+
   private resolveWritableSchoolId(
     schoolId: string | undefined,
     user: AuthUser,
