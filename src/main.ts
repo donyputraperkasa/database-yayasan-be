@@ -10,6 +10,10 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 4000;
 
+  app.enableCors({
+    origin: ['http://localhost:3000'],
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

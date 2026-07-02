@@ -17,6 +17,7 @@ export class AssetsService {
   async create(dto: CreateAssetDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
     await this.ensureSchoolExists(schoolId);
+    await this.ensureSchoolCanEdit(schoolId, user);
 
     const data = { ...dto };
     delete data.schoolId;
@@ -66,6 +67,7 @@ export class AssetsService {
   async update(id: string, dto: UpdateAssetDto, user: AuthUser) {
     const asset = await this.findAssetOrThrow(id);
     this.ensureCanManageAsset(asset.schoolId, user);
+    await this.ensureSchoolCanEdit(asset.schoolId, user);
 
     const { schoolId, ...data } = dto;
     const nextSchoolId =
@@ -90,6 +92,7 @@ export class AssetsService {
   async remove(id: string, user: AuthUser) {
     const asset = await this.findAssetOrThrow(id);
     this.ensureCanManageAsset(asset.schoolId, user);
+    await this.ensureSchoolCanEdit(asset.schoolId, user);
 
     return this.prisma.schoolAsset.delete({
       where: { id },
@@ -170,6 +173,21 @@ export class AssetsService {
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
+    }
+  }
+
+  private async ensureSchoolCanEdit(schoolId: string, user: AuthUser) {
+    if (user.role !== Role.SCHOOL) {
+      return;
+    }
+
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { canEdit: true },
+    });
+
+    if (!school?.canEdit) {
+      throw new ForbiddenException('Akses edit sekolah sedang dikunci owner');
     }
   }
 }

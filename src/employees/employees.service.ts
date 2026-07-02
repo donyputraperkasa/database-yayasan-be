@@ -25,6 +25,7 @@ export class EmployeesService {
   async create(dto: CreateEmployeeDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
     await this.ensureSchoolExists(schoolId);
+    await this.ensureSchoolCanEdit(schoolId, user);
 
     // schoolId dari body hanya dipakai untuk menentukan relasi sekolah.
     // Field tanggal dihapus dari DTO mentah karena akan dikonversi dan dihitung ulang.
@@ -84,6 +85,7 @@ export class EmployeesService {
   async update(id: string, dto: UpdateEmployeeDto, user: AuthUser) {
     const employee = await this.findEmployeeOrThrow(id);
     this.ensureCanManageEmployee(employee.schoolId, user);
+    await this.ensureSchoolCanEdit(employee.schoolId, user);
 
     // Saat update, owner boleh memindahkan employee ke sekolah lain.
     // Role school tetap terkunci ke sekolah yang ada di token.
@@ -114,9 +116,24 @@ export class EmployeesService {
     });
   }
 
+  async uploadPhoto(id: string, photoUrl: string, user: AuthUser) {
+    const employee = await this.findEmployeeOrThrow(id);
+    this.ensureCanManageEmployee(employee.schoolId, user);
+    await this.ensureSchoolCanEdit(employee.schoolId, user);
+
+    return this.prisma.employee.update({
+      where: { id },
+      data: { photoUrl },
+      include: {
+        school: true,
+      },
+    });
+  }
+
   async remove(id: string, user: AuthUser) {
     const employee = await this.findEmployeeOrThrow(id);
     this.ensureCanManageEmployee(employee.schoolId, user);
+    await this.ensureSchoolCanEdit(employee.schoolId, user);
 
     return this.prisma.employee.delete({
       where: { id },
@@ -290,6 +307,21 @@ export class EmployeesService {
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
+    }
+  }
+
+  private async ensureSchoolCanEdit(schoolId: string, user: AuthUser) {
+    if (user.role !== Role.SCHOOL) {
+      return;
+    }
+
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { canEdit: true },
+    });
+
+    if (!school?.canEdit) {
+      throw new ForbiddenException('Akses edit sekolah sedang dikunci owner');
     }
   }
 }

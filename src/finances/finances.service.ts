@@ -17,6 +17,7 @@ export class FinancesService {
   async create(dto: CreateFinanceDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
     await this.ensureSchoolExists(schoolId);
+    await this.ensureSchoolCanEdit(schoolId, user);
 
     const data = { ...dto };
     const { date } = data;
@@ -76,6 +77,7 @@ export class FinancesService {
   async update(id: string, dto: UpdateFinanceDto, user: AuthUser) {
     const finance = await this.findFinanceOrThrow(id);
     this.ensureCanManageFinance(finance.schoolId, user);
+    await this.ensureSchoolCanEdit(finance.schoolId, user);
 
     const { schoolId, date, ...data } = dto;
     const nextSchoolId =
@@ -101,6 +103,7 @@ export class FinancesService {
   async remove(id: string, user: AuthUser) {
     const finance = await this.findFinanceOrThrow(id);
     this.ensureCanManageFinance(finance.schoolId, user);
+    await this.ensureSchoolCanEdit(finance.schoolId, user);
 
     return this.prisma.finance.delete({
       where: { id },
@@ -183,6 +186,21 @@ export class FinancesService {
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
+    }
+  }
+
+  private async ensureSchoolCanEdit(schoolId: string, user: AuthUser) {
+    if (user.role !== Role.SCHOOL) {
+      return;
+    }
+
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { canEdit: true },
+    });
+
+    if (!school?.canEdit) {
+      throw new ForbiddenException('Akses edit sekolah sedang dikunci owner');
     }
   }
 }

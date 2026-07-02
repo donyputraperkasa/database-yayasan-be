@@ -28,6 +28,7 @@ export class SchoolProfileService {
   ) {
     this.ensureCanManageSchoolProfile(schoolId, user);
     await this.ensureSchoolExists(schoolId);
+    await this.ensureSchoolCanEdit(schoolId, user);
 
     return this.prisma.schoolProfile.upsert({
       where: { schoolId },
@@ -69,6 +70,21 @@ export class SchoolProfileService {
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
+    }
+  }
+
+  private async ensureSchoolCanEdit(schoolId: string, user: AuthUser) {
+    if (user.role !== Role.SCHOOL) {
+      return;
+    }
+
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { canEdit: true },
+    });
+
+    if (!school?.canEdit) {
+      throw new ForbiddenException('Akses edit sekolah sedang dikunci owner');
     }
   }
 }

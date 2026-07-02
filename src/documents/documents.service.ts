@@ -19,6 +19,7 @@ export class DocumentsService {
   async upload(dto: CreateDocumentDto, fileUrl: string, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
     await this.ensureSchoolExists(schoolId);
+    await this.ensureSchoolCanEdit(schoolId, user);
 
     return this.prisma.document.create({
       data: {
@@ -66,6 +67,7 @@ export class DocumentsService {
   async update(id: string, dto: UpdateDocumentDto, user: AuthUser) {
     const document = await this.findDocumentOrThrow(id);
     this.ensureCanManageDocument(document.schoolId, user);
+    await this.ensureSchoolCanEdit(document.schoolId, user);
 
     const { schoolId, ...data } = dto;
     const nextSchoolId =
@@ -90,6 +92,7 @@ export class DocumentsService {
   async remove(id: string, user: AuthUser) {
     const document = await this.findDocumentOrThrow(id);
     this.ensureCanManageDocument(document.schoolId, user);
+    await this.ensureSchoolCanEdit(document.schoolId, user);
 
     return this.prisma.document.delete({
       where: { id },
@@ -170,6 +173,21 @@ export class DocumentsService {
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
+    }
+  }
+
+  private async ensureSchoolCanEdit(schoolId: string, user: AuthUser) {
+    if (user.role !== Role.SCHOOL) {
+      return;
+    }
+
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { canEdit: true },
+    });
+
+    if (!school?.canEdit) {
+      throw new ForbiddenException('Akses edit sekolah sedang dikunci owner');
     }
   }
 }

@@ -109,7 +109,9 @@ describe('EmployeesService', () => {
   });
 
   it('role school memakai schoolId dari token, bukan dari body request', async () => {
-    prisma.school.findUnique.mockResolvedValue({ id: 'school-token' });
+    prisma.school.findUnique
+      .mockResolvedValueOnce({ id: 'school-token' })
+      .mockResolvedValueOnce({ canEdit: true });
 
     await service.create(
       {
@@ -123,6 +125,10 @@ describe('EmployeesService', () => {
     expect(prisma.school.findUnique).toHaveBeenCalledWith({
       where: { id: 'school-token' },
       select: { id: true },
+    });
+    expect(prisma.school.findUnique).toHaveBeenCalledWith({
+      where: { id: 'school-token' },
+      select: { canEdit: true },
     });
     expect(getLastEmployeeCreateData()).toMatchObject({
       schoolId: 'school-token',

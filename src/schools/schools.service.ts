@@ -73,6 +73,15 @@ export class SchoolsService {
     });
   }
 
+  async updateEditAccess(id: string, canEdit: boolean) {
+    await this.ensureSchoolExists(id);
+
+    return this.prisma.school.update({
+      where: { id },
+      data: { canEdit },
+    });
+  }
+
   async remove(id: string) {
     await this.ensureSchoolExists(id);
 

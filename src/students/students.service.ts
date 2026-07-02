@@ -17,6 +17,7 @@ export class StudentsService {
   async create(dto: CreateStudentDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
     await this.ensureSchoolExists(schoolId);
+    await this.ensureSchoolCanEdit(schoolId, user);
 
     const data = { ...dto };
     delete data.schoolId;
@@ -67,6 +68,7 @@ export class StudentsService {
   async update(id: string, dto: UpdateStudentDto, user: AuthUser) {
     const student = await this.findStudentOrThrow(id);
     this.ensureCanManageStudent(student.schoolId, user);
+    await this.ensureSchoolCanEdit(student.schoolId, user);
 
     const { schoolId, ...data } = dto;
     const nextSchoolId =
@@ -88,9 +90,24 @@ export class StudentsService {
     });
   }
 
+  async uploadPhoto(id: string, photoUrl: string, user: AuthUser) {
+    const student = await this.findStudentOrThrow(id);
+    this.ensureCanManageStudent(student.schoolId, user);
+    await this.ensureSchoolCanEdit(student.schoolId, user);
+
+    return this.prisma.student.update({
+      where: { id },
+      data: { photoUrl },
+      include: {
+        school: true,
+      },
+    });
+  }
+
   async remove(id: string, user: AuthUser) {
     const student = await this.findStudentOrThrow(id);
     this.ensureCanManageStudent(student.schoolId, user);
+    await this.ensureSchoolCanEdit(student.schoolId, user);
 
     return this.prisma.student.delete({
       where: { id },
@@ -171,6 +188,21 @@ export class StudentsService {
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
+    }
+  }
+
+  private async ensureSchoolCanEdit(schoolId: string, user: AuthUser) {
+    if (user.role !== Role.SCHOOL) {
+      return;
+    }
+
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { canEdit: true },
+    });
+
+    if (!school?.canEdit) {
+      throw new ForbiddenException('Akses edit sekolah sedang dikunci owner');
     }
   }
 }

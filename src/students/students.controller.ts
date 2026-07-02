@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,22 +9,40 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
+import type { File as MulterFile } from 'multer';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { CreateStudentDto } from './dto/create-student.dto';
+import {
+  maxStudentPhotoSize,
+  studentPhotoApiBody,
+  studentPhotoFileFilter,
+  studentPhotoStorage,
+} from './student-photo-upload.config';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentsService } from './students.service';
 
 type RequestWithUser = Request & {
   user: AuthUser;
 };
+
+type UploadedStudentPhoto = Pick<MulterFile, 'filename'>;
 
 @ApiTags('Students')
 @ApiBearerAuth()
@@ -36,6 +55,31 @@ export class StudentsController {
   @Post()
   create(@Body() dto: CreateStudentDto, @Req() request: RequestWithUser) {
     return this.studentsService.create(dto, request.user);
+  }
+
+  @Roles(Role.OWNER, Role.SCHOOL)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(studentPhotoApiBody)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      fileFilter: studentPhotoFileFilter,
+      limits: { fileSize: maxStudentPhotoSize },
+      storage: studentPhotoStorage,
+    }),
+  )
+  @Post(':id/photo')
+  uploadPhoto(
+    @Param('id') id: string,
+    @UploadedFile() file: UploadedStudentPhoto,
+    @Req() request: RequestWithUser,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Foto wajib diupload');
+    }
+
+    const photoUrl = `/uploads/students/${file.filename}`;
+
+    return this.studentsService.uploadPhoto(id, photoUrl, request.user);
   }
 
   @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)

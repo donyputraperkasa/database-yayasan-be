@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { CreateSchoolDto } from './dto/create-school.dto';
+import { UpdateSchoolEditAccessDto } from './dto/update-school-edit-access.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
 import { SchoolsService } from './schools.service';
 
@@ -53,6 +54,15 @@ export class SchoolsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateSchoolDto) {
     return this.schoolsService.update(id, dto);
+  }
+
+  @Roles(Role.OWNER)
+  @Patch(':id/edit-access')
+  updateEditAccess(
+    @Param('id') id: string,
+    @Body() dto: UpdateSchoolEditAccessDto,
+  ) {
+    return this.schoolsService.updateEditAccess(id, dto.canEdit);
   }
 
   @Roles(Role.OWNER)

@@ -32,6 +32,11 @@ export class CreateStudentDto {
   @IsEnum(Gender)
   gender?: Gender;
 
+  @ApiPropertyOptional({ example: 'Kristen' })
+  @IsOptional()
+  @IsString()
+  religion?: string;
+
   @ApiPropertyOptional({ example: 'Bapak Yohanes Pratama' })
   @IsOptional()
   @IsString()

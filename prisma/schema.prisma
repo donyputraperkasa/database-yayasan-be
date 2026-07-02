@@ -135,6 +135,7 @@ model School {
   phone     String?
   email     String?
   principal String?
+  canEdit   Boolean     @default(false)
 
   users      User[]
   profile    SchoolProfile?
@@ -193,6 +194,7 @@ model Student {
   birthPlaceDate String?
   address        String? @db.Text
   gender         String?
+  religion       String?
   fatherName     String?
   motherName     String?
   fatherJob      String?

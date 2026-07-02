@@ -68,7 +68,9 @@ describe('DocumentsService', () => {
   });
 
   it('upload role school memakai schoolId dari token', async () => {
-    prisma.school.findUnique.mockResolvedValue({ id: 'school-token' });
+    prisma.school.findUnique
+      .mockResolvedValueOnce({ id: 'school-token' })
+      .mockResolvedValueOnce({ canEdit: true });
     prisma.document.create.mockResolvedValue({ id: 'document-1' });
 
     await service.upload(
