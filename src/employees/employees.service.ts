@@ -130,6 +130,20 @@ export class EmployeesService {
     });
   }
 
+  async uploadDecree(id: string, decreeUrl: string, user: AuthUser) {
+    const employee = await this.findEmployeeOrThrow(id);
+    this.ensureCanManageEmployee(employee.schoolId, user);
+    await this.ensureSchoolCanEdit(employee.schoolId, user);
+
+    return this.prisma.employee.update({
+      where: { id },
+      data: { decreeUrl },
+      include: {
+        school: true,
+      },
+    });
+  }
+
   async remove(id: string, user: AuthUser) {
     const employee = await this.findEmployeeOrThrow(id);
     this.ensureCanManageEmployee(employee.schoolId, user);

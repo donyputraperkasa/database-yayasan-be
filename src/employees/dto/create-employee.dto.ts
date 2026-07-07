@@ -101,4 +101,11 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   photoUrl?: string;
+
+  @ApiPropertyOptional({
+    example: '/uploads/employees/decrees/sk-terakhir.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  decreeUrl?: string;
 }

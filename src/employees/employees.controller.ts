@@ -30,6 +30,12 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import {
+  employeeDecreeApiBody,
+  employeeDecreeFileFilter,
+  employeeDecreeStorage,
+  maxEmployeeDecreeSize,
+} from './employee-decree-upload.config';
+import {
   employeePhotoApiBody,
   employeePhotoFileFilter,
   employeePhotoStorage,
@@ -80,6 +86,31 @@ export class EmployeesController {
     const photoUrl = `/uploads/employees/${file.filename}`;
 
     return this.employeesService.uploadPhoto(id, photoUrl, request.user);
+  }
+
+  @Roles(Role.OWNER, Role.SCHOOL)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(employeeDecreeApiBody)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      fileFilter: employeeDecreeFileFilter,
+      limits: { fileSize: maxEmployeeDecreeSize },
+      storage: employeeDecreeStorage,
+    }),
+  )
+  @Post(':id/decree')
+  uploadDecree(
+    @Param('id') id: string,
+    @UploadedFile() file: UploadedEmployeePhoto,
+    @Req() request: RequestWithUser,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Scan SK wajib diupload');
+    }
+
+    const decreeUrl = `/uploads/employees/decrees/${file.filename}`;
+
+    return this.employeesService.uploadDecree(id, decreeUrl, request.user);
   }
 
   @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)

@@ -85,6 +85,7 @@ model Employee {
   decreeNumber   String?
   fee            String?
   photoUrl       String?
+  decreeUrl      String?
   workingPeriod  String?
   retirementAge  Int?
   retirementDate DateTime?

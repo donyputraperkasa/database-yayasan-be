@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD COLUMN `decreeUrl` VARCHAR(191) NULL;
