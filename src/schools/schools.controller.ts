@@ -50,10 +50,14 @@ export class SchoolsController {
     return this.schoolsService.findById(id, request.user);
   }
 
-  @Roles(Role.OWNER)
+  @Roles(Role.OWNER, Role.SCHOOL)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateSchoolDto) {
-    return this.schoolsService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateSchoolDto,
+    @Req() request: RequestWithUser,
+  ) {
+    return this.schoolsService.update(id, dto, request.user);
   }
 
   @Roles(Role.OWNER)

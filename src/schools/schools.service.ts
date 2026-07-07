@@ -27,11 +27,13 @@ export class SchoolsService {
 
       return this.prisma.school.findMany({
         where: { id: user.schoolId },
+        include: { profile: true },
         orderBy: { createdAt: 'desc' },
       });
     }
 
     return this.prisma.school.findMany({
+      include: { profile: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -64,12 +66,15 @@ export class SchoolsService {
     return school;
   }
 
-  async update(id: string, dto: UpdateSchoolDto) {
+  async update(id: string, dto: UpdateSchoolDto, user: AuthUser) {
+    this.ensureCanManageSchool(id, user);
     await this.ensureSchoolExists(id);
+    await this.ensureSchoolCanEdit(id, user);
 
     return this.prisma.school.update({
       where: { id },
       data: dto,
+      include: { profile: true },
     });
   }
 
@@ -100,6 +105,18 @@ export class SchoolsService {
     }
   }
 
+  private ensureCanManageSchool(id: string, user: AuthUser) {
+    if (user.role === Role.OWNER) {
+      return;
+    }
+
+    if (user.role === Role.SCHOOL && user.schoolId === id) {
+      return;
+    }
+
+    throw new ForbiddenException('Tidak bisa mengubah sekolah ini');
+  }
+
   private async ensureSchoolExists(id: string) {
     const school = await this.prisma.school.findUnique({
       where: { id },
@@ -108,6 +125,21 @@ export class SchoolsService {
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
+    }
+  }
+
+  private async ensureSchoolCanEdit(id: string, user: AuthUser) {
+    if (user.role !== Role.SCHOOL) {
+      return;
+    }
+
+    const school = await this.prisma.school.findUnique({
+      where: { id },
+      select: { canEdit: true },
+    });
+
+    if (!school?.canEdit) {
+      throw new ForbiddenException('Akses edit sekolah sedang dikunci owner');
     }
   }
 }

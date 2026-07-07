@@ -40,6 +40,18 @@ export class SchoolProfileService {
     });
   }
 
+  async uploadPhoto(schoolId: string, photoUrl: string, user: AuthUser) {
+    this.ensureCanManageSchoolProfile(schoolId, user);
+    await this.ensureSchoolExists(schoolId);
+    await this.ensureSchoolCanEdit(schoolId, user);
+
+    return this.prisma.schoolProfile.upsert({
+      where: { schoolId },
+      create: { schoolId, photoUrl },
+      update: { photoUrl },
+    });
+  }
+
   private ensureCanAccessSchool(schoolId: string, user: AuthUser) {
     if (user.role !== Role.SCHOOL) {
       return;
