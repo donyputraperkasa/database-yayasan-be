@@ -64,7 +64,12 @@ export class DocumentsService {
     return document;
   }
 
-  async update(id: string, dto: UpdateDocumentDto, user: AuthUser) {
+  async update(
+    id: string,
+    dto: UpdateDocumentDto,
+    user: AuthUser,
+    fileUrl?: string,
+  ) {
     const document = await this.findDocumentOrThrow(id);
     this.ensureCanManageDocument(document.schoolId, user);
     await this.ensureSchoolCanEdit(document.schoolId, user);
@@ -81,6 +86,7 @@ export class DocumentsService {
       where: { id },
       data: {
         ...data,
+        ...(fileUrl ? { fileUrl } : {}),
         schoolId: nextSchoolId,
       },
       include: {

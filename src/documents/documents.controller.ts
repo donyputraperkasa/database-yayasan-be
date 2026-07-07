@@ -134,13 +134,40 @@ export class DocumentsController {
   }
 
   @Roles(Role.OWNER, Role.SCHOOL)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        schoolId: {
+          type: 'string',
+          description: 'Opsional untuk owner bila dokumen dipindah sekolah.',
+        },
+        name: { type: 'string', example: 'Akta Pendirian Sekolah Revisi' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: `Opsional. Upload untuk mengganti file lama. Maksimal ${maxDocumentSizeMb} MB`,
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage,
+      limits: { fileSize: maxDocumentSize },
+    }),
+  )
   @Patch(':id')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateDocumentDto,
+    @UploadedFile() file: UploadedDocument | undefined,
     @Req() request: RequestWithUser,
   ) {
-    return this.documentsService.update(id, dto, request.user);
+    const fileUrl = file ? `/uploads/documents/${file.filename}` : undefined;
+
+    return this.documentsService.update(id, dto, request.user, fileUrl);
   }
 
   @Roles(Role.OWNER, Role.SCHOOL)

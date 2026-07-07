@@ -66,28 +66,28 @@ model Document {
 
 model Employee {
   id             String       @id @default(cuid())
-  schoolId       String
-  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name           String
-  gender         String?
   birthPlaceDate String?
   birthDate      DateTime?
   religion       String?
-  lastEducation  String?
   address        String?      @db.Text
+  type           EmployeeType @default(guru)
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  position       String?
+  otherPosition  String?
+  status         String?
+  gender         String?
+  joinDate       DateTime?
+  lastEducation  String?
   phone          String?
   email          String?
-  status         String?
   decreeNumber   String?
-  joinDate       DateTime?
+  fee            String?
+  photoUrl       String?
   workingPeriod  String?
   retirementAge  Int?
   retirementDate DateTime?
-  position       String?
-  otherPosition  String?
-  type           EmployeeType @default(guru)
-  fee            String?
-  photoUrl       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
