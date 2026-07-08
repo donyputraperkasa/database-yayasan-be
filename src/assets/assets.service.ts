@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,7 +13,10 @@ import { UpdateAssetDto } from './dto/update-asset.dto';
 
 @Injectable()
 export class AssetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async create(dto: CreateAssetDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
@@ -22,7 +26,7 @@ export class AssetsService {
     const data = { ...dto };
     delete data.schoolId;
 
-    return this.prisma.schoolAsset.create({
+    const asset = await this.prisma.schoolAsset.create({
       data: {
         ...data,
         schoolId,
@@ -31,6 +35,16 @@ export class AssetsService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Menambahkan aset sekolah ${asset.school.name}`,
+      entity: 'assets',
+      entityId: asset.id,
+      schoolId: asset.schoolId,
+      user,
+    });
+
+    return asset;
   }
 
   async findAll(user: AuthUser, schoolId?: string) {
@@ -77,7 +91,7 @@ export class AssetsService {
       await this.ensureSchoolExists(schoolId);
     }
 
-    return this.prisma.schoolAsset.update({
+    const updatedAsset = await this.prisma.schoolAsset.update({
       where: { id },
       data: {
         ...data,
@@ -87,6 +101,16 @@ export class AssetsService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'update',
+      description: `Mengubah aset sekolah ${updatedAsset.school.name}`,
+      entity: 'assets',
+      entityId: updatedAsset.id,
+      schoolId: updatedAsset.schoolId,
+      user,
+    });
+
+    return updatedAsset;
   }
 
   async remove(id: string, user: AuthUser) {
@@ -94,9 +118,19 @@ export class AssetsService {
     this.ensureCanManageAsset(asset.schoolId, user);
     await this.ensureSchoolCanEdit(asset.schoolId, user);
 
-    return this.prisma.schoolAsset.delete({
+    const deletedAsset = await this.prisma.schoolAsset.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: 'Menghapus aset sekolah',
+      entity: 'assets',
+      entityId: deletedAsset.id,
+      schoolId: deletedAsset.schoolId,
+      user,
+    });
+
+    return deletedAsset;
   }
 
   async uploadPhoto(id: string, photoUrl: string, user: AuthUser) {
@@ -104,13 +138,23 @@ export class AssetsService {
     this.ensureCanManageAsset(asset.schoolId, user);
     await this.ensureSchoolCanEdit(asset.schoolId, user);
 
-    return this.prisma.schoolAsset.update({
+    const updatedAsset = await this.prisma.schoolAsset.update({
       where: { id },
       data: { photoUrl },
       include: {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'upload_photo',
+      description: `Mengunggah foto aset sekolah ${updatedAsset.school.name}`,
+      entity: 'assets',
+      entityId: updatedAsset.id,
+      schoolId: updatedAsset.schoolId,
+      user,
+    });
+
+    return updatedAsset;
   }
 
   private resolveWritableSchoolId(

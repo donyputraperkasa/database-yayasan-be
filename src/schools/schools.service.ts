@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,12 +12,25 @@ import { UpdateSchoolDto } from './dto/update-school.dto';
 
 @Injectable()
 export class SchoolsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
-  async create(dto: CreateSchoolDto) {
-    return this.prisma.school.create({
+  async create(dto: CreateSchoolDto, user: AuthUser) {
+    const school = await this.prisma.school.create({
       data: dto,
     });
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Menambahkan sekolah ${school.name}`,
+      entity: 'schools',
+      entityId: school.id,
+      schoolId: school.id,
+      user,
+    });
+
+    return school;
   }
 
   async findAll(user: AuthUser) {
@@ -71,28 +85,58 @@ export class SchoolsService {
     await this.ensureSchoolExists(id);
     await this.ensureSchoolCanEdit(id, user);
 
-    return this.prisma.school.update({
+    const school = await this.prisma.school.update({
       where: { id },
       data: dto,
       include: { profile: true },
     });
+    await this.auditLogsService.create({
+      action: 'update',
+      description: `Mengubah data sekolah ${school.name}`,
+      entity: 'schools',
+      entityId: school.id,
+      schoolId: school.id,
+      user,
+    });
+
+    return school;
   }
 
-  async updateEditAccess(id: string, canEdit: boolean) {
+  async updateEditAccess(id: string, canEdit: boolean, user: AuthUser) {
     await this.ensureSchoolExists(id);
 
-    return this.prisma.school.update({
+    const school = await this.prisma.school.update({
       where: { id },
       data: { canEdit },
     });
+    await this.auditLogsService.create({
+      action: canEdit ? 'open_edit_access' : 'close_edit_access',
+      description: `${canEdit ? 'Membuka' : 'Mengunci'} akses edit ${school.name}`,
+      entity: 'schools',
+      entityId: school.id,
+      schoolId: school.id,
+      user,
+    });
+
+    return school;
   }
 
-  async remove(id: string) {
-    await this.ensureSchoolExists(id);
+  async remove(id: string, user: AuthUser) {
+    const school = await this.ensureSchoolExists(id);
 
-    return this.prisma.school.delete({
+    const deletedSchool = await this.prisma.school.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: `Menghapus sekolah ${school.name}`,
+      entity: 'schools',
+      entityId: id,
+      schoolId: id,
+      user,
+    });
+
+    return deletedSchool;
   }
 
   private ensureCanAccessSchool(id: string, user: AuthUser) {
@@ -120,12 +164,14 @@ export class SchoolsService {
   private async ensureSchoolExists(id: string) {
     const school = await this.prisma.school.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     if (!school) {
       throw new NotFoundException('Sekolah tidak ditemukan');
     }
+
+    return school;
   }
 
   private async ensureSchoolCanEdit(id: string, user: AuthUser) {

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +11,10 @@ import { CreateContactDto } from './dto/create-contact.dto';
 
 @Injectable()
 export class ContactsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async create(dto: CreateContactDto, user: AuthUser) {
     const schoolId = this.resolveSchoolId(dto.schoolId, user);
@@ -19,7 +23,7 @@ export class ContactsService {
       await this.ensureSchoolExists(schoolId);
     }
 
-    return this.prisma.contact.create({
+    const contact = await this.prisma.contact.create({
       data: {
         ...dto,
         schoolId,
@@ -28,6 +32,16 @@ export class ContactsService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Membuat pesan kontak ${contact.name}`,
+      entity: 'contacts',
+      entityId: contact.id,
+      schoolId: contact.schoolId,
+      user,
+    });
+
+    return contact;
   }
 
   async findAll(user: AuthUser, schoolId?: string) {
@@ -70,12 +84,22 @@ export class ContactsService {
     return contact;
   }
 
-  async remove(id: string) {
-    await this.findContactOrThrow(id);
+  async remove(id: string, user: AuthUser) {
+    const contact = await this.findContactOrThrow(id);
 
-    return this.prisma.contact.delete({
+    const deletedContact = await this.prisma.contact.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: `Menghapus pesan kontak ${deletedContact.name}`,
+      entity: 'contacts',
+      entityId: deletedContact.id,
+      schoolId: contact.schoolId,
+      user,
+    });
+
+    return deletedContact;
   }
 
   private resolveSchoolId(schoolId: string | undefined, user: AuthUser) {
@@ -93,12 +117,14 @@ export class ContactsService {
   private async findContactOrThrow(id: string) {
     const contact = await this.prisma.contact.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, schoolId: true },
     });
 
     if (!contact) {
       throw new NotFoundException('Pesan kontak tidak ditemukan');
     }
+
+    return contact;
   }
 
   private async ensureSchoolExists(schoolId: string) {

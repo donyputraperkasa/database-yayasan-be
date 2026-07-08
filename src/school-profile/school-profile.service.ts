@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +11,10 @@ import { UpdateSchoolProfileDto } from './dto/update-school-profile.dto';
 
 @Injectable()
 export class SchoolProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async findBySchoolId(schoolId: string, user: AuthUser) {
     this.ensureCanAccessSchool(schoolId, user);
@@ -30,7 +34,7 @@ export class SchoolProfileService {
     await this.ensureSchoolExists(schoolId);
     await this.ensureSchoolCanEdit(schoolId, user);
 
-    return this.prisma.schoolProfile.upsert({
+    const profile = await this.prisma.schoolProfile.upsert({
       where: { schoolId },
       create: {
         schoolId,
@@ -38,6 +42,16 @@ export class SchoolProfileService {
       },
       update: dto,
     });
+    await this.auditLogsService.create({
+      action: 'upsert',
+      description: 'Mengubah profil sekolah',
+      entity: 'school_profiles',
+      entityId: profile.id,
+      schoolId: profile.schoolId,
+      user,
+    });
+
+    return profile;
   }
 
   async uploadPhoto(schoolId: string, photoUrl: string, user: AuthUser) {
@@ -45,11 +59,21 @@ export class SchoolProfileService {
     await this.ensureSchoolExists(schoolId);
     await this.ensureSchoolCanEdit(schoolId, user);
 
-    return this.prisma.schoolProfile.upsert({
+    const profile = await this.prisma.schoolProfile.upsert({
       where: { schoolId },
       create: { schoolId, photoUrl },
       update: { photoUrl },
     });
+    await this.auditLogsService.create({
+      action: 'upload_photo',
+      description: 'Mengunggah foto profil sekolah',
+      entity: 'school_profiles',
+      entityId: profile.id,
+      schoolId: profile.schoolId,
+      user,
+    });
+
+    return profile;
   }
 
   private ensureCanAccessSchool(schoolId: string, user: AuthUser) {

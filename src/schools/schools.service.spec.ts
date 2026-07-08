@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role, SchoolLevel } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +18,7 @@ type MockPrisma = {
 describe('SchoolsService', () => {
   let service: SchoolsService;
   let prisma: MockPrisma;
+  let auditLogsService: Pick<AuditLogsService, 'create'>;
 
   const owner: AuthUser = {
     sub: 'owner-1',
@@ -41,19 +43,31 @@ describe('SchoolsService', () => {
         delete: jest.fn(),
       },
     };
+    auditLogsService = {
+      create: jest.fn().mockResolvedValue(undefined),
+    };
 
-    service = new SchoolsService(prisma as unknown as PrismaService);
+    service = new SchoolsService(
+      auditLogsService as AuditLogsService,
+      prisma as unknown as PrismaService,
+    );
   });
 
   it('membuat sekolah baru', async () => {
-    prisma.school.create.mockResolvedValue({ id: 'school-1' });
+    prisma.school.create.mockResolvedValue({
+      id: 'school-1',
+      name: 'SMA Test',
+    });
 
     await expect(
-      service.create({
-        name: 'SMA Test',
-        level: SchoolLevel.SMA_SMK,
-      }),
-    ).resolves.toEqual({ id: 'school-1' });
+      service.create(
+        {
+          name: 'SMA Test',
+          level: SchoolLevel.SMA_SMK,
+        },
+        owner,
+      ),
+    ).resolves.toEqual({ id: 'school-1', name: 'SMA Test' });
     expect(prisma.school.create).toHaveBeenCalledWith({
       data: {
         name: 'SMA Test',
@@ -67,6 +81,7 @@ describe('SchoolsService', () => {
 
     await expect(service.findAll(owner)).resolves.toEqual([{ id: 'school-1' }]);
     expect(prisma.school.findMany).toHaveBeenCalledWith({
+      include: { profile: true },
       orderBy: { createdAt: 'desc' },
     });
   });
@@ -78,6 +93,7 @@ describe('SchoolsService', () => {
 
     expect(prisma.school.findMany).toHaveBeenCalledWith({
       where: { id: 'school-1' },
+      include: { profile: true },
       orderBy: { createdAt: 'desc' },
     });
   });
@@ -92,7 +108,7 @@ describe('SchoolsService', () => {
     prisma.school.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.update('school-1', { name: 'Nama Baru' }),
+      service.update('school-1', { name: 'Nama Baru' }, owner),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmployeeType, Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,7 +21,10 @@ type EmployeeSnapshot = {
 
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async create(dto: CreateEmployeeDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
@@ -34,7 +38,7 @@ export class EmployeesService {
     delete data.birthDate;
     delete data.joinDate;
 
-    return this.prisma.employee.create({
+    const employee = await this.prisma.employee.create({
       data: {
         ...data,
         ...this.buildCalculatedFields({
@@ -48,6 +52,16 @@ export class EmployeesService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Menambahkan pegawai ${employee.name}`,
+      entity: 'employees',
+      entityId: employee.id,
+      schoolId: employee.schoolId,
+      user,
+    });
+
+    return employee;
   }
 
   async findAll(user: AuthUser, schoolId?: string, type?: EmployeeType) {
@@ -99,7 +113,7 @@ export class EmployeesService {
       await this.ensureSchoolExists(schoolId);
     }
 
-    return this.prisma.employee.update({
+    const updatedEmployee = await this.prisma.employee.update({
       where: { id },
       data: {
         ...data,
@@ -114,6 +128,16 @@ export class EmployeesService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'update',
+      description: `Mengubah data pegawai ${updatedEmployee.name}`,
+      entity: 'employees',
+      entityId: updatedEmployee.id,
+      schoolId: updatedEmployee.schoolId,
+      user,
+    });
+
+    return updatedEmployee;
   }
 
   async uploadPhoto(id: string, photoUrl: string, user: AuthUser) {
@@ -121,13 +145,23 @@ export class EmployeesService {
     this.ensureCanManageEmployee(employee.schoolId, user);
     await this.ensureSchoolCanEdit(employee.schoolId, user);
 
-    return this.prisma.employee.update({
+    const updatedEmployee = await this.prisma.employee.update({
       where: { id },
       data: { photoUrl },
       include: {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'upload_photo',
+      description: `Mengunggah foto pegawai ${updatedEmployee.name}`,
+      entity: 'employees',
+      entityId: updatedEmployee.id,
+      schoolId: updatedEmployee.schoolId,
+      user,
+    });
+
+    return updatedEmployee;
   }
 
   async uploadDecree(id: string, decreeUrl: string, user: AuthUser) {
@@ -135,13 +169,23 @@ export class EmployeesService {
     this.ensureCanManageEmployee(employee.schoolId, user);
     await this.ensureSchoolCanEdit(employee.schoolId, user);
 
-    return this.prisma.employee.update({
+    const updatedEmployee = await this.prisma.employee.update({
       where: { id },
       data: { decreeUrl },
       include: {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'upload_decree',
+      description: `Mengunggah scan SK pegawai ${updatedEmployee.name}`,
+      entity: 'employees',
+      entityId: updatedEmployee.id,
+      schoolId: updatedEmployee.schoolId,
+      user,
+    });
+
+    return updatedEmployee;
   }
 
   async remove(id: string, user: AuthUser) {
@@ -149,9 +193,19 @@ export class EmployeesService {
     this.ensureCanManageEmployee(employee.schoolId, user);
     await this.ensureSchoolCanEdit(employee.schoolId, user);
 
-    return this.prisma.employee.delete({
+    const deletedEmployee = await this.prisma.employee.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: `Menghapus pegawai ${deletedEmployee.name}`,
+      entity: 'employees',
+      entityId: deletedEmployee.id,
+      schoolId: deletedEmployee.schoolId,
+      user,
+    });
+
+    return deletedEmployee;
   }
 
   private resolveWritableSchoolId(

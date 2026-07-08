@@ -34,8 +34,8 @@ export class SchoolsController {
 
   @Roles(Role.OWNER)
   @Post()
-  create(@Body() dto: CreateSchoolDto) {
-    return this.schoolsService.create(dto);
+  create(@Body() dto: CreateSchoolDto, @Req() request: RequestWithUser) {
+    return this.schoolsService.create(dto, request.user);
   }
 
   @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)
@@ -65,13 +65,14 @@ export class SchoolsController {
   updateEditAccess(
     @Param('id') id: string,
     @Body() dto: UpdateSchoolEditAccessDto,
+    @Req() request: RequestWithUser,
   ) {
-    return this.schoolsService.updateEditAccess(id, dto.canEdit);
+    return this.schoolsService.updateEditAccess(id, dto.canEdit, request.user);
   }
 
   @Roles(Role.OWNER)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.schoolsService.remove(id);
+  remove(@Param('id') id: string, @Req() request: RequestWithUser) {
+    return this.schoolsService.remove(id, request.user);
   }
 }

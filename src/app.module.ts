@@ -15,6 +15,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PrismaModule } from './prisma/prisma.module';
       isGlobal: true,
     }),
     AssetsModule,
+    AuditLogsModule,
     AuthModule,
     ContactsModule,
     DashboardModule,

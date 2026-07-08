@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { FinanceType, Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +29,7 @@ type FinanceWritePayload = {
 describe('FinancesService', () => {
   let service: FinancesService;
   let prisma: MockPrisma;
+  let auditLogsService: Pick<AuditLogsService, 'create'>;
 
   const owner: AuthUser = {
     sub: 'owner-1',
@@ -57,8 +59,14 @@ describe('FinancesService', () => {
         delete: jest.fn(),
       },
     };
+    auditLogsService = {
+      create: jest.fn().mockResolvedValue(undefined),
+    };
 
-    service = new FinancesService(prisma as unknown as PrismaService);
+    service = new FinancesService(
+      auditLogsService as AuditLogsService,
+      prisma as unknown as PrismaService,
+    );
   });
 
   it('owner wajib mengirim schoolId saat membuat data finance', async () => {

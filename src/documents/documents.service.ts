@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,14 +15,17 @@ import {
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async upload(dto: CreateDocumentDto, fileUrl: string, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
     await this.ensureSchoolExists(schoolId);
     await this.ensureSchoolCanEdit(schoolId, user);
 
-    return this.prisma.document.create({
+    const document = await this.prisma.document.create({
       data: {
         schoolId,
         name: dto.name,
@@ -31,6 +35,16 @@ export class DocumentsService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'upload',
+      description: `Mengunggah dokumen ${document.name}`,
+      entity: 'documents',
+      entityId: document.id,
+      schoolId: document.schoolId,
+      user,
+    });
+
+    return document;
   }
 
   async findAll(user: AuthUser, schoolId?: string) {
@@ -82,7 +96,7 @@ export class DocumentsService {
       await this.ensureSchoolExists(schoolId);
     }
 
-    return this.prisma.document.update({
+    const updatedDocument = await this.prisma.document.update({
       where: { id },
       data: {
         ...data,
@@ -93,6 +107,16 @@ export class DocumentsService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: fileUrl ? 'replace_file' : 'update',
+      description: `Mengubah dokumen ${updatedDocument.name}`,
+      entity: 'documents',
+      entityId: updatedDocument.id,
+      schoolId: updatedDocument.schoolId,
+      user,
+    });
+
+    return updatedDocument;
   }
 
   async remove(id: string, user: AuthUser) {
@@ -100,9 +124,19 @@ export class DocumentsService {
     this.ensureCanManageDocument(document.schoolId, user);
     await this.ensureSchoolCanEdit(document.schoolId, user);
 
-    return this.prisma.document.delete({
+    const deletedDocument = await this.prisma.document.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: `Menghapus dokumen ${deletedDocument.name}`,
+      entity: 'documents',
+      entityId: deletedDocument.id,
+      schoolId: deletedDocument.schoolId,
+      user,
+    });
+
+    return deletedDocument;
   }
 
   private resolveWritableSchoolId(

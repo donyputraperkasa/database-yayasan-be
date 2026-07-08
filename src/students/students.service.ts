@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,7 +13,10 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 
 @Injectable()
 export class StudentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async create(dto: CreateStudentDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
@@ -22,7 +26,7 @@ export class StudentsService {
     const data = { ...dto };
     delete data.schoolId;
 
-    return this.prisma.student.create({
+    const student = await this.prisma.student.create({
       data: {
         ...data,
         schoolId,
@@ -31,6 +35,16 @@ export class StudentsService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Menambahkan siswa ${student.name}`,
+      entity: 'students',
+      entityId: student.id,
+      schoolId: student.schoolId,
+      user,
+    });
+
+    return student;
   }
 
   async findAll(user: AuthUser, schoolId?: string, className?: string) {
@@ -78,7 +92,7 @@ export class StudentsService {
       await this.ensureSchoolExists(schoolId);
     }
 
-    return this.prisma.student.update({
+    const updatedStudent = await this.prisma.student.update({
       where: { id },
       data: {
         ...data,
@@ -88,6 +102,16 @@ export class StudentsService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'update',
+      description: `Mengubah data siswa ${updatedStudent.name}`,
+      entity: 'students',
+      entityId: updatedStudent.id,
+      schoolId: updatedStudent.schoolId,
+      user,
+    });
+
+    return updatedStudent;
   }
 
   async uploadPhoto(id: string, photoUrl: string, user: AuthUser) {
@@ -95,13 +119,23 @@ export class StudentsService {
     this.ensureCanManageStudent(student.schoolId, user);
     await this.ensureSchoolCanEdit(student.schoolId, user);
 
-    return this.prisma.student.update({
+    const updatedStudent = await this.prisma.student.update({
       where: { id },
       data: { photoUrl },
       include: {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'upload_photo',
+      description: `Mengunggah foto siswa ${updatedStudent.name}`,
+      entity: 'students',
+      entityId: updatedStudent.id,
+      schoolId: updatedStudent.schoolId,
+      user,
+    });
+
+    return updatedStudent;
   }
 
   async remove(id: string, user: AuthUser) {
@@ -109,9 +143,19 @@ export class StudentsService {
     this.ensureCanManageStudent(student.schoolId, user);
     await this.ensureSchoolCanEdit(student.schoolId, user);
 
-    return this.prisma.student.delete({
+    const deletedStudent = await this.prisma.student.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: `Menghapus siswa ${deletedStudent.name}`,
+      entity: 'students',
+      entityId: deletedStudent.id,
+      schoolId: deletedStudent.schoolId,
+      user,
+    });
+
+    return deletedStudent;
   }
 
   private resolveWritableSchoolId(

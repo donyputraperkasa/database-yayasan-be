@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Gender, Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +29,7 @@ type StudentWritePayload = {
 describe('StudentsService', () => {
   let service: StudentsService;
   let prisma: MockPrisma;
+  let auditLogsService: Pick<AuditLogsService, 'create'>;
 
   const owner: AuthUser = {
     sub: 'owner-1',
@@ -57,8 +59,14 @@ describe('StudentsService', () => {
         delete: jest.fn(),
       },
     };
+    auditLogsService = {
+      create: jest.fn().mockResolvedValue(undefined),
+    };
 
-    service = new StudentsService(prisma as unknown as PrismaService);
+    service = new StudentsService(
+      auditLogsService as AuditLogsService,
+      prisma as unknown as PrismaService,
+    );
   });
 
   it('owner wajib mengirim schoolId saat membuat siswa', async () => {

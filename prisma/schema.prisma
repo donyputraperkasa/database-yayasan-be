@@ -211,15 +211,37 @@ model Student {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role
-  schoolId  String?
-  school    School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  name                String
+  email               String    @unique
+  password            String
+  role                Role
+  schoolId            String?
+  school              School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  activeSessionId     String?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@map("users")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String?
+  description String   @db.Text
+  userId      String?
+  userEmail   String?
+  userRole    Role?
+  schoolId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([schoolId])
+  @@index([userId])
+  @@index([entity])
+  @@map("audit_logs")
 }

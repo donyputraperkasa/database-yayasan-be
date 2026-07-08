@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { FacilityCondition, Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,7 +13,10 @@ import { UpdateFacilityDto } from './dto/update-facility.dto';
 
 @Injectable()
 export class FacilitiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async create(dto: CreateFacilityDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
@@ -22,7 +26,7 @@ export class FacilitiesService {
     const data = { ...dto };
     delete data.schoolId;
 
-    return this.prisma.facility.create({
+    const facility = await this.prisma.facility.create({
       data: {
         ...data,
         schoolId,
@@ -31,6 +35,16 @@ export class FacilitiesService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Menambahkan fasilitas ${facility.name}`,
+      entity: 'facilities',
+      entityId: facility.id,
+      schoolId: facility.schoolId,
+      user,
+    });
+
+    return facility;
   }
 
   async findAll(
@@ -82,7 +96,7 @@ export class FacilitiesService {
       await this.ensureSchoolExists(schoolId);
     }
 
-    return this.prisma.facility.update({
+    const updatedFacility = await this.prisma.facility.update({
       where: { id },
       data: {
         ...data,
@@ -92,6 +106,16 @@ export class FacilitiesService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'update',
+      description: `Mengubah fasilitas ${updatedFacility.name}`,
+      entity: 'facilities',
+      entityId: updatedFacility.id,
+      schoolId: updatedFacility.schoolId,
+      user,
+    });
+
+    return updatedFacility;
   }
 
   async remove(id: string, user: AuthUser) {
@@ -99,9 +123,19 @@ export class FacilitiesService {
     this.ensureCanManageFacility(facility.schoolId, user);
     await this.ensureSchoolCanEdit(facility.schoolId, user);
 
-    return this.prisma.facility.delete({
+    const deletedFacility = await this.prisma.facility.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: `Menghapus fasilitas ${deletedFacility.name}`,
+      entity: 'facilities',
+      entityId: deletedFacility.id,
+      schoolId: deletedFacility.schoolId,
+      user,
+    });
+
+    return deletedFacility;
   }
 
   private resolveWritableSchoolId(

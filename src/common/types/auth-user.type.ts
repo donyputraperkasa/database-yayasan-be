@@ -5,4 +5,5 @@ export type AuthUser = {
   email: string;
   role: Role;
   schoolId?: string | null;
+  sessionId?: string | null;
 };

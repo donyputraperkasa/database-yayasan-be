@@ -6,16 +6,24 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
+import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly lockDurationMs = 15 * 60 * 1000;
 
-  async create(dto: CreateUserDto) {
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  async create(dto: CreateUserDto, actor?: AuthUser) {
     // Akun sekolah wajib terhubung ke satu sekolah, sedangkan owner/office bersifat level yayasan.
     if (dto.role === Role.SCHOOL && !dto.schoolId) {
       throw new BadRequestException('schoolId wajib diisi untuk role school');
@@ -67,6 +75,14 @@ export class UsersService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Membuat akun ${user.email} dengan role ${user.role}`,
+      entity: 'users',
+      entityId: user.id,
+      schoolId: user.schoolId,
+      user: actor,
+    });
     return safeUser;
   }
 
@@ -114,9 +130,17 @@ export class UsersService {
     };
   }
 
-  async resetPassword(id: string, dto: ResetPasswordDto) {
-    await this.findById(id);
+  async resetPassword(id: string, dto: ResetPasswordDto, actor?: AuthUser) {
+    const user = await this.findById(id);
     await this.updatePassword(id, dto.newPassword);
+    await this.auditLogsService.create({
+      action: 'reset_password',
+      description: `Reset password akun ${user.email}`,
+      entity: 'users',
+      entityId: id,
+      schoolId: user.schoolId,
+      user: actor,
+    });
 
     return {
       message: 'Password berhasil direset',
@@ -134,6 +158,86 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { email },
     });
+  }
+
+  async registerLoginFailure(user: {
+    id: string;
+    email: string;
+    failedLoginAttempts: number;
+    lockedUntil?: Date | null;
+    role: string;
+    schoolId?: string | null;
+  }) {
+    const previousLockExpired =
+      user.lockedUntil !== null &&
+      user.lockedUntil !== undefined &&
+      user.lockedUntil <= new Date();
+    const failedLoginAttempts = previousLockExpired
+      ? 1
+      : user.failedLoginAttempts + 1;
+    const lockedUntil =
+      failedLoginAttempts >= 3
+        ? new Date(Date.now() + this.lockDurationMs)
+        : null;
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts,
+        lockedUntil,
+      },
+    });
+    await this.auditLogsService.create({
+      action: lockedUntil ? 'lock_account' : 'login_failed',
+      description: lockedUntil
+        ? `Akun ${user.email} terkunci karena 3 kali gagal login`
+        : `Login gagal untuk akun ${user.email}`,
+      entity: 'auth',
+      entityId: user.id,
+      schoolId: user.schoolId,
+      user: {
+        email: user.email,
+        role: user.role as Role,
+        schoolId: user.schoolId,
+        sub: user.id,
+      },
+    });
+
+    return { failedLoginAttempts, lockedUntil };
+  }
+
+  async registerLoginSuccess(user: {
+    id: string;
+    email: string;
+    role: string;
+    schoolId?: string | null;
+  }) {
+    const activeSessionId = randomUUID();
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        activeSessionId,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+    await this.auditLogsService.create({
+      action: 'login_success',
+      description: `Login berhasil untuk akun ${user.email}`,
+      entity: 'auth',
+      entityId: user.id,
+      schoolId: user.schoolId,
+      user: {
+        email: user.email,
+        role: user.role as Role,
+        schoolId: user.schoolId,
+        sub: user.id,
+        sessionId: activeSessionId,
+      },
+    });
+
+    return activeSessionId;
   }
 
   async findById(id: string) {
@@ -154,7 +258,12 @@ export class UsersService {
 
     return this.prisma.user.update({
       where: { id },
-      data: { password: hashedPassword },
+      data: {
+        activeSessionId: null,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        password: hashedPassword,
+      },
       omit: { password: true },
     });
   }

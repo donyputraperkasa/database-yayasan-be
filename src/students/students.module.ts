@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { StudentsController } from './students.controller';
 import { StudentsService } from './students.service';
 
 @Module({
+  imports: [AuditLogsModule],
   controllers: [StudentsController],
   providers: [StudentsService],
   exports: [StudentsService],

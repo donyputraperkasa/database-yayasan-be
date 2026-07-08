@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { FinanceType, Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,7 +13,10 @@ import { UpdateFinanceDto } from './dto/update-finance.dto';
 
 @Injectable()
 export class FinancesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async create(dto: CreateFinanceDto, user: AuthUser) {
     const schoolId = this.resolveWritableSchoolId(dto.schoolId, user);
@@ -24,7 +28,7 @@ export class FinancesService {
     delete data.schoolId;
     delete data.date;
 
-    return this.prisma.finance.create({
+    const finance = await this.prisma.finance.create({
       data: {
         ...data,
         date: date ? new Date(date) : undefined,
@@ -34,6 +38,16 @@ export class FinancesService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'create',
+      description: `Menambahkan data keuangan ${finance.type}`,
+      entity: 'finances',
+      entityId: finance.id,
+      schoolId: finance.schoolId,
+      user,
+    });
+
+    return finance;
   }
 
   async findAll(
@@ -87,7 +101,7 @@ export class FinancesService {
       await this.ensureSchoolExists(schoolId);
     }
 
-    return this.prisma.finance.update({
+    const updatedFinance = await this.prisma.finance.update({
       where: { id },
       data: {
         ...data,
@@ -98,6 +112,16 @@ export class FinancesService {
         school: true,
       },
     });
+    await this.auditLogsService.create({
+      action: 'update',
+      description: `Mengubah data keuangan ${updatedFinance.type}`,
+      entity: 'finances',
+      entityId: updatedFinance.id,
+      schoolId: updatedFinance.schoolId,
+      user,
+    });
+
+    return updatedFinance;
   }
 
   async remove(id: string, user: AuthUser) {
@@ -105,9 +129,19 @@ export class FinancesService {
     this.ensureCanManageFinance(finance.schoolId, user);
     await this.ensureSchoolCanEdit(finance.schoolId, user);
 
-    return this.prisma.finance.delete({
+    const deletedFinance = await this.prisma.finance.delete({
       where: { id },
     });
+    await this.auditLogsService.create({
+      action: 'delete',
+      description: `Menghapus data keuangan ${deletedFinance.type}`,
+      entity: 'finances',
+      entityId: deletedFinance.id,
+      schoolId: deletedFinance.schoolId,
+      user,
+    });
+
+    return deletedFinance;
   }
 
   private resolveWritableSchoolId(

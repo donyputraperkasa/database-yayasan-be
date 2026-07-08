@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmployeeType, Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,6 +25,7 @@ type EmployeeWritePayload = {
 describe('EmployeesService', () => {
   let service: EmployeesService;
   let prisma: MockPrisma;
+  let auditLogsService: Pick<AuditLogsService, 'create'>;
 
   const owner: AuthUser = {
     sub: 'owner-1',
@@ -58,8 +60,14 @@ describe('EmployeesService', () => {
         findMany: jest.fn(),
       },
     };
+    auditLogsService = {
+      create: jest.fn().mockResolvedValue(undefined),
+    };
 
-    service = new EmployeesService(prisma as unknown as PrismaService);
+    service = new EmployeesService(
+      auditLogsService as AuditLogsService,
+      prisma as unknown as PrismaService,
+    );
   });
 
   afterEach(() => {

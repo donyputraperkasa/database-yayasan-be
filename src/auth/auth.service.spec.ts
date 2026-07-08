@@ -9,6 +9,8 @@ type MockUsersService = {
   findByEmail: jest.Mock;
   createBootstrapOwner: jest.Mock;
   changePassword: jest.Mock;
+  registerLoginFailure: jest.Mock;
+  registerLoginSuccess: jest.Mock;
 };
 
 type MockJwtService = {
@@ -25,6 +27,8 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       createBootstrapOwner: jest.fn(),
       changePassword: jest.fn(),
+      registerLoginFailure: jest.fn().mockResolvedValue({}),
+      registerLoginSuccess: jest.fn().mockResolvedValue('session-1'),
     };
     jwtService = {
       signAsync: jest.fn().mockResolvedValue('access-token'),
@@ -48,6 +52,8 @@ describe('AuthService', () => {
       schoolId: null,
       createdAt: now,
       updatedAt: now,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
     });
 
     const result = await service.login({
@@ -60,6 +66,7 @@ describe('AuthService', () => {
       email: 'owner@mail.com',
       role: Role.OWNER,
       schoolId: null,
+      sessionId: 'session-1',
     });
     expect(result).toEqual({
       accessToken: 'access-token',
@@ -89,7 +96,13 @@ describe('AuthService', () => {
 
   it('menolak login jika password salah', async () => {
     usersService.findByEmail.mockResolvedValue({
+      id: 'user-1',
+      email: 'owner@mail.com',
       password: await bcrypt.hash('password-benar', 10),
+      role: Role.OWNER,
+      schoolId: null,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
     });
 
     await expect(
@@ -98,6 +111,7 @@ describe('AuthService', () => {
         password: 'password-salah',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(usersService.registerLoginFailure).toHaveBeenCalled();
   });
 
   it('bootstrapOwner meneruskan request ke UsersService', () => {

@@ -20,11 +20,20 @@ export class AuthService {
       throw new UnauthorizedException('Email atau password salah');
     }
 
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException(
+        'Ehhh cieee gagal login 3x, tunggu beberapa menit lagi yaa',
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
 
     if (!isPasswordValid) {
+      await this.usersService.registerLoginFailure(user);
       throw new UnauthorizedException('Email atau password salah');
     }
+
+    const sessionId = await this.usersService.registerLoginSuccess(user);
 
     // Payload JWT dibuat minimal: cukup untuk identitas, role, dan pembatasan schoolId.
     const payload = {
@@ -32,6 +41,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       schoolId: user.schoolId,
+      sessionId,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);

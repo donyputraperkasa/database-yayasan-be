@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from '../common/enums/role.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
@@ -32,6 +33,7 @@ type UserUpdatePayload = {
 describe('UsersService', () => {
   let service: UsersService;
   let prisma: MockPrisma;
+  let auditLogsService: Pick<AuditLogsService, 'create'>;
 
   beforeEach(() => {
     prisma = {
@@ -46,8 +48,14 @@ describe('UsersService', () => {
         update: jest.fn(),
       },
     };
+    auditLogsService = {
+      create: jest.fn().mockResolvedValue(undefined),
+    };
 
-    service = new UsersService(prisma as unknown as PrismaService);
+    service = new UsersService(
+      auditLogsService as AuditLogsService,
+      prisma as unknown as PrismaService,
+    );
   });
 
   it('menolak role school jika schoolId kosong', async () => {

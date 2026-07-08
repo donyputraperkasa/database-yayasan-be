@@ -54,7 +54,7 @@ export class ContactsController {
 
   @Roles(Role.OWNER)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.contactsService.remove(id);
+  remove(@Param('id') id: string, @Req() request: RequestWithUser) {
+    return this.contactsService.remove(id, request.user);
   }
 }
