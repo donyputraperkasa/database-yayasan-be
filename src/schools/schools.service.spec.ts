@@ -6,12 +6,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SchoolsService } from './schools.service';
 
 type MockPrisma = {
+  $transaction: jest.Mock;
   school: {
     create: jest.Mock;
+    findFirst: jest.Mock;
     findMany: jest.Mock;
     findUnique: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
+  };
+  user: {
+    updateMany: jest.Mock;
   };
 };
 
@@ -33,14 +38,26 @@ describe('SchoolsService', () => {
     schoolId: 'school-1',
   };
 
+  type SchoolArchivePayload = {
+    where: { id: string };
+    data: { archivedAt: Date; canEdit: boolean };
+  };
+
   beforeEach(() => {
     prisma = {
+      $transaction: jest.fn((queries: Array<Promise<unknown>>) =>
+        Promise.all(queries),
+      ),
       school: {
         create: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+      },
+      user: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
     auditLogsService = {
@@ -81,6 +98,7 @@ describe('SchoolsService', () => {
 
     await expect(service.findAll(owner)).resolves.toEqual([{ id: 'school-1' }]);
     expect(prisma.school.findMany).toHaveBeenCalledWith({
+      where: { archivedAt: null },
       include: { profile: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -92,7 +110,7 @@ describe('SchoolsService', () => {
     await service.findAll(schoolUser);
 
     expect(prisma.school.findMany).toHaveBeenCalledWith({
-      where: { id: 'school-1' },
+      where: { archivedAt: null, id: 'school-1' },
       include: { profile: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -105,10 +123,56 @@ describe('SchoolsService', () => {
   });
 
   it('update menolak jika sekolah tidak ditemukan', async () => {
-    prisma.school.findUnique.mockResolvedValue(null);
+    prisma.school.findFirst.mockResolvedValue(null);
 
     await expect(
       service.update('school-1', { name: 'Nama Baru' }, owner),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('remove mengarsipkan sekolah dan memutus sesi akun sekolah', async () => {
+    prisma.school.findFirst.mockResolvedValue({
+      id: 'school-1',
+      name: 'SMA Test',
+    });
+    prisma.school.update.mockResolvedValue({
+      id: 'school-1',
+      name: 'SMA Test',
+      archivedAt: new Date('2026-07-13T00:00:00.000Z'),
+    });
+
+    await service.remove('school-1', owner);
+
+    const updateCalls = prisma.school.update.mock.calls as Array<
+      [SchoolArchivePayload]
+    >;
+    const archivePayload = updateCalls.at(-1)?.[0];
+
+    expect(archivePayload?.where).toEqual({ id: 'school-1' });
+    expect(archivePayload?.data.canEdit).toBe(false);
+    expect(archivePayload?.data.archivedAt).toBeInstanceOf(Date);
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { schoolId: 'school-1' },
+      data: { activeSessionId: null },
+    });
+  });
+
+  it('restore mengaktifkan kembali sekolah yang diarsipkan', async () => {
+    prisma.school.findFirst.mockResolvedValue({
+      id: 'school-1',
+      name: 'SMA Test',
+    });
+    prisma.school.update.mockResolvedValue({
+      id: 'school-1',
+      archivedAt: null,
+    });
+
+    await expect(service.restore('school-1', owner)).resolves.toEqual({
+      id: 'school-1',
+      archivedAt: null,
+    });
+    expect(prisma.school.findFirst).toHaveBeenCalledWith({
+      where: { archivedAt: { not: null }, id: 'school-1' },
+    });
   });
 });

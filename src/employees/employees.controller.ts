@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -21,9 +22,11 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { File as MulterFile } from 'multer';
+import { extname } from 'path';
 import { Roles } from '../common/decorators/roles.decorator';
+import { sendPrivateUpload } from '../common/files/private-file';
 import { EmployeeType, Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -123,6 +126,23 @@ export class EmployeesController {
     @Query('type') type?: EmployeeType,
   ) {
     return this.employeesService.findAll(request.user, schoolId, type);
+  }
+
+  @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)
+  @Get(':id/decree-file')
+  async openDecree(
+    @Param('id') id: string,
+    @Req() request: RequestWithUser,
+    @Res() response: Response,
+  ) {
+    const employee = await this.employeesService.findById(id, request.user);
+
+    sendPrivateUpload(
+      response,
+      employee.decreeUrl,
+      'employees/decrees',
+      `SK-${employee.name}${extname(employee.decreeUrl ?? '')}`,
+    );
   }
 
   @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)

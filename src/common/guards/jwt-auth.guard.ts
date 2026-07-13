@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
+import { readAuthCookie } from '../auth/auth-cookie';
 import { AuthUser } from '../types/auth-user.type';
 
 type RequestWithUser = Request & {
@@ -22,10 +23,14 @@ export class JwtAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
-    const token = this.extractTokenFromHeader(request);
+    const { fromCookie, token } = this.extractToken(request);
 
     if (!token) {
       throw new UnauthorizedException('Token tidak ditemukan');
+    }
+
+    if (fromCookie) {
+      this.ensureCookieRequestIsTrusted(request);
     }
 
     let user: AuthUser;
@@ -50,18 +55,42 @@ export class JwtAuthGuard implements CanActivate {
 
     const account = await this.prisma.user.findUnique({
       where: { id: user.sub },
-      select: { activeSessionId: true },
+      select: {
+        activeSessionId: true,
+        school: { select: { archivedAt: true } },
+      },
     });
 
-    if (!account || account.activeSessionId !== user.sessionId) {
+    if (
+      !account ||
+      account.school?.archivedAt ||
+      account.activeSessionId !== user.sessionId
+    ) {
       throw new UnauthorizedException(
         'Akun sudah login di perangkat lain. Silakan login ulang.',
       );
     }
   }
 
-  private extractTokenFromHeader(request: Request): string | undefined {
+  private extractToken(request: Request) {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? token : undefined;
+
+    if (type === 'Bearer' && token) {
+      return { fromCookie: false, token };
+    }
+
+    return {
+      fromCookie: true,
+      token: readAuthCookie(request.headers.cookie),
+    };
+  }
+
+  private ensureCookieRequestIsTrusted(request: Request) {
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (safeMethods.includes(request.method)) return;
+
+    if (request.headers['x-requested-with'] !== 'XMLHttpRequest') {
+      throw new UnauthorizedException('Request cookie tidak valid');
+    }
   }
 }

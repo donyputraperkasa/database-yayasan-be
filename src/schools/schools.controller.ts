@@ -44,6 +44,12 @@ export class SchoolsController {
     return this.schoolsService.findAll(request.user);
   }
 
+  @Roles(Role.OWNER)
+  @Get('archived')
+  findArchived() {
+    return this.schoolsService.findArchived();
+  }
+
   @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)
   @Get(':id')
   findById(@Param('id') id: string, @Req() request: RequestWithUser) {
@@ -68,6 +74,12 @@ export class SchoolsController {
     @Req() request: RequestWithUser,
   ) {
     return this.schoolsService.updateEditAccess(id, dto.canEdit, request.user);
+  }
+
+  @Roles(Role.OWNER)
+  @Patch(':id/restore')
+  restore(@Param('id') id: string, @Req() request: RequestWithUser) {
+    return this.schoolsService.restore(id, request.user);
   }
 
   @Roles(Role.OWNER)

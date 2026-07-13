@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -21,11 +22,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Request } from 'express';
+import type { Request, Response } from 'express';
 import { existsSync, mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
 import type { File as MulterFile, StorageEngine } from 'multer';
 import { extname, join } from 'path';
+import { sendPrivateUpload } from '../common/files/private-file';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -42,10 +44,36 @@ type RequestWithUser = Request & {
 };
 
 type UploadedDocument = Pick<MulterFile, 'filename'>;
+type UploadedDocumentCandidate = Pick<MulterFile, 'mimetype' | 'originalname'>;
 
 const uploadPath = join(process.cwd(), 'uploads', 'documents');
 const maxDocumentSizeMb = 10;
 const maxDocumentSize = maxDocumentSizeMb * 1024 * 1024;
+const allowedDocumentTypes = new Map([
+  ['application/pdf', ['.pdf']],
+  ['image/jpeg', ['.jpg', '.jpeg']],
+  ['image/png', ['.png']],
+  ['image/webp', ['.webp']],
+]);
+
+function documentFileFilter(
+  _request: unknown,
+  file: UploadedDocumentCandidate,
+  callback: (error: Error | null, acceptFile: boolean) => void,
+) {
+  const extensions = allowedDocumentTypes.get(file.mimetype);
+  const extension = extname(file.originalname).toLowerCase();
+
+  if (!extensions?.includes(extension)) {
+    callback(
+      new BadRequestException('Dokumen harus berupa PDF, JPG, PNG, atau WEBP'),
+      false,
+    );
+    return;
+  }
+
+  callback(null, true);
+}
 
 const storage: StorageEngine = diskStorage({
   destination: (_request, _file, callback) => {
@@ -97,6 +125,7 @@ export class DocumentsController {
   })
   @UseInterceptors(
     FileInterceptor('file', {
+      fileFilter: documentFileFilter,
       storage,
       limits: { fileSize: maxDocumentSize },
     }),
@@ -111,7 +140,7 @@ export class DocumentsController {
       throw new BadRequestException('File wajib diupload');
     }
 
-    // URL relatif ini dipakai frontend untuk membuka file melalui static route /uploads.
+    // URL relatif disimpan di database, tetapi file dibuka melalui endpoint privat.
     const fileUrl = `/uploads/documents/${file.filename}`;
 
     return this.documentsService.upload(dto, fileUrl, request.user);
@@ -125,6 +154,24 @@ export class DocumentsController {
     @Query('schoolId') schoolId?: string,
   ) {
     return this.documentsService.findAll(request.user, schoolId);
+  }
+
+  @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)
+  @Get(':id/file')
+  async openFile(
+    @Param('id') id: string,
+    @Req() request: RequestWithUser,
+    @Res() response: Response,
+  ) {
+    const document = await this.documentsService.findById(id, request.user);
+    const extension = extname(document.fileUrl);
+
+    sendPrivateUpload(
+      response,
+      document.fileUrl,
+      'documents',
+      `${document.name}${extension}`,
+    );
   }
 
   @Roles(Role.OWNER, Role.OFFICE, Role.SCHOOL)
@@ -154,6 +201,7 @@ export class DocumentsController {
   })
   @UseInterceptors(
     FileInterceptor('file', {
+      fileFilter: documentFileFilter,
       storage,
       limits: { fileSize: maxDocumentSize },
     }),

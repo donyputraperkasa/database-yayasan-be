@@ -11,6 +11,7 @@ import { DocumentsService } from './documents.service';
 
 type MockPrisma = {
   school: {
+    findFirst: jest.Mock;
     findUnique: jest.Mock;
   };
   document: {
@@ -43,6 +44,7 @@ describe('DocumentsService', () => {
   beforeEach(() => {
     prisma = {
       school: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'school-1' }),
         findUnique: jest.fn().mockResolvedValue({ id: 'school-1' }),
       },
       document: {
@@ -76,9 +78,8 @@ describe('DocumentsService', () => {
   });
 
   it('upload role school memakai schoolId dari token', async () => {
-    prisma.school.findUnique
-      .mockResolvedValueOnce({ id: 'school-token' })
-      .mockResolvedValueOnce({ canEdit: true });
+    prisma.school.findFirst.mockResolvedValueOnce({ id: 'school-token' });
+    prisma.school.findUnique.mockResolvedValueOnce({ canEdit: true });
     prisma.document.create.mockResolvedValue({ id: 'document-1' });
 
     await service.upload(
@@ -111,6 +112,7 @@ describe('DocumentsService', () => {
       expect.objectContaining({
         where: {
           schoolId: 'school-token',
+          school: { archivedAt: null },
         },
       }),
     );

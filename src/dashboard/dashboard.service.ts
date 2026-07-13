@@ -14,7 +14,7 @@ export class DashboardService {
     const scopedSchoolId = this.getScopedSchoolId(user);
     const schoolScopedWhere = scopedSchoolId
       ? { schoolId: scopedSchoolId }
-      : {};
+      : { school: { archivedAt: null } };
 
     // Query summary dijalankan paralel karena semua hitungan berdiri sendiri.
     const [
@@ -109,7 +109,7 @@ export class DashboardService {
   private getSchoolWhere(user: AuthUser) {
     const schoolId = this.getScopedSchoolId(user);
 
-    return schoolId ? { id: schoolId } : {};
+    return schoolId ? { archivedAt: null, id: schoolId } : { archivedAt: null };
   }
 
   private mapSchoolsByLevel(

@@ -54,7 +54,10 @@ export class ContactsService {
     }
 
     return this.prisma.contact.findMany({
-      where: { schoolId },
+      where: {
+        schoolId,
+        OR: [{ schoolId: null }, { school: { archivedAt: null } }],
+      },
       include: {
         school: true,
       },
@@ -128,8 +131,8 @@ export class ContactsService {
   }
 
   private async ensureSchoolExists(schoolId: string) {
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
+    const school = await this.prisma.school.findFirst({
+      where: { archivedAt: null, id: schoolId },
       select: { id: true },
     });
 

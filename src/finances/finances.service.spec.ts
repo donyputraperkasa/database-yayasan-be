@@ -11,6 +11,7 @@ import { FinancesService } from './finances.service';
 
 type MockPrisma = {
   school: {
+    findFirst: jest.Mock;
     findUnique: jest.Mock;
   };
   finance: {
@@ -47,6 +48,7 @@ describe('FinancesService', () => {
   beforeEach(() => {
     prisma = {
       school: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'school-1' }),
         findUnique: jest.fn().mockResolvedValue({ id: 'school-1' }),
       },
       finance: {
@@ -113,6 +115,7 @@ describe('FinancesService', () => {
           schoolId: 'school-token',
           type: FinanceType.SPP,
           className: '6A',
+          school: { archivedAt: null },
         },
       }),
     );

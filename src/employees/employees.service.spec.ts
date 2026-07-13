@@ -7,6 +7,7 @@ import { EmployeesService } from './employees.service';
 
 type MockPrisma = {
   school: {
+    findFirst: jest.Mock;
     findUnique: jest.Mock;
   };
   employee: {
@@ -46,6 +47,7 @@ describe('EmployeesService', () => {
 
     prisma = {
       school: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'school-1' }),
         findUnique: jest.fn().mockResolvedValue({ id: 'school-1' }),
       },
       employee: {
@@ -117,9 +119,8 @@ describe('EmployeesService', () => {
   });
 
   it('role school memakai schoolId dari token, bukan dari body request', async () => {
-    prisma.school.findUnique
-      .mockResolvedValueOnce({ id: 'school-token' })
-      .mockResolvedValueOnce({ canEdit: true });
+    prisma.school.findFirst.mockResolvedValueOnce({ id: 'school-token' });
+    prisma.school.findUnique.mockResolvedValueOnce({ canEdit: true });
 
     await service.create(
       {
@@ -130,8 +131,8 @@ describe('EmployeesService', () => {
       schoolUser,
     );
 
-    expect(prisma.school.findUnique).toHaveBeenCalledWith({
-      where: { id: 'school-token' },
+    expect(prisma.school.findFirst).toHaveBeenCalledWith({
+      where: { archivedAt: null, id: 'school-token' },
       select: { id: true },
     });
     expect(prisma.school.findUnique).toHaveBeenCalledWith({

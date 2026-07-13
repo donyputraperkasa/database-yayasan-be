@@ -40,13 +40,14 @@ export class SchoolsService {
       }
 
       return this.prisma.school.findMany({
-        where: { id: user.schoolId },
+        where: { archivedAt: null, id: user.schoolId },
         include: { profile: true },
         orderBy: { createdAt: 'desc' },
       });
     }
 
     return this.prisma.school.findMany({
+      where: { archivedAt: null },
       include: { profile: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -55,8 +56,8 @@ export class SchoolsService {
   async findById(id: string, user: AuthUser) {
     this.ensureCanAccessSchool(id, user);
 
-    const school = await this.prisma.school.findUnique({
-      where: { id },
+    const school = await this.prisma.school.findFirst({
+      where: { archivedAt: null, id },
       include: {
         profile: true,
         _count: {
@@ -124,19 +125,56 @@ export class SchoolsService {
   async remove(id: string, user: AuthUser) {
     const school = await this.ensureSchoolExists(id);
 
-    const deletedSchool = await this.prisma.school.delete({
-      where: { id },
-    });
+    const [archivedSchool] = await this.prisma.$transaction([
+      this.prisma.school.update({
+        where: { id },
+        data: { archivedAt: new Date(), canEdit: false },
+      }),
+      this.prisma.user.updateMany({
+        where: { schoolId: id },
+        data: { activeSessionId: null },
+      }),
+    ]);
     await this.auditLogsService.create({
-      action: 'delete',
-      description: `Menghapus sekolah ${school.name}`,
+      action: 'archive',
+      description: `Mengarsipkan sekolah ${school.name}`,
       entity: 'schools',
       entityId: id,
       schoolId: id,
       user,
     });
 
-    return deletedSchool;
+    return archivedSchool;
+  }
+
+  findArchived() {
+    return this.prisma.school.findMany({
+      where: { archivedAt: { not: null } },
+      include: { profile: true },
+      orderBy: { archivedAt: 'desc' },
+    });
+  }
+
+  async restore(id: string, user: AuthUser) {
+    const school = await this.prisma.school.findFirst({
+      where: { archivedAt: { not: null }, id },
+    });
+
+    if (!school) throw new NotFoundException('Arsip sekolah tidak ditemukan');
+    const restoredSchool = await this.prisma.school.update({
+      where: { id },
+      data: { archivedAt: null },
+    });
+    await this.auditLogsService.create({
+      action: 'restore',
+      description: `Memulihkan sekolah ${school.name}`,
+      entity: 'schools',
+      entityId: id,
+      schoolId: id,
+      user,
+    });
+
+    return restoredSchool;
   }
 
   private ensureCanAccessSchool(id: string, user: AuthUser) {
@@ -162,8 +200,8 @@ export class SchoolsService {
   }
 
   private async ensureSchoolExists(id: string) {
-    const school = await this.prisma.school.findUnique({
-      where: { id },
+    const school = await this.prisma.school.findFirst({
+      where: { archivedAt: null, id },
       select: { id: true, name: true },
     });
 

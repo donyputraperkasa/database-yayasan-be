@@ -93,7 +93,9 @@ describe('DashboardService', () => {
   it('mengembalikan summary owner tanpa scope schoolId', async () => {
     const result = await service.getSummary(owner);
 
-    expect(prisma.school.count).toHaveBeenCalledWith({ where: {} });
+    expect(prisma.school.count).toHaveBeenCalledWith({
+      where: { archivedAt: null },
+    });
     expect(result.totals).toMatchObject({
       schools: 1,
       students: 10,

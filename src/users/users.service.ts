@@ -36,8 +36,8 @@ export class UsersService {
     }
 
     if (dto.schoolId) {
-      const school = await this.prisma.school.findUnique({
-        where: { id: dto.schoolId },
+      const school = await this.prisma.school.findFirst({
+        where: { archivedAt: null, id: dto.schoolId },
       });
 
       if (!school) {
@@ -157,6 +157,26 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
+      include: {
+        school: {
+          select: { archivedAt: true },
+        },
+      },
+    });
+  }
+
+  async logout(user: AuthUser) {
+    await this.prisma.user.update({
+      where: { id: user.sub },
+      data: { activeSessionId: null },
+    });
+    await this.auditLogsService.create({
+      action: 'logout',
+      description: `Logout akun ${user.email}`,
+      entity: 'auth',
+      entityId: user.sub,
+      schoolId: user.schoolId,
+      user,
     });
   }
 

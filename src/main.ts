@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as express from 'express';
+import type { Request, Response } from 'express';
+import helmet from 'helmet';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
@@ -15,8 +17,14 @@ async function bootstrap() {
   ].filter(Boolean) as string[];
 
   app.enableCors({
+    credentials: true,
     origin: allowedOrigins,
   });
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -26,7 +34,25 @@ async function bootstrap() {
     }),
   );
 
-  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+  // Dokumen dan scan SK hanya boleh dibuka melalui endpoint yang memakai guard.
+  app.use('/uploads/documents', (_request: Request, response: Response) => {
+    response.sendStatus(404);
+  });
+  app.use(
+    '/uploads/employees/decrees',
+    (_request: Request, response: Response) => {
+      response.sendStatus(404);
+    },
+  );
+  app.use(
+    '/uploads',
+    express.static(join(process.cwd(), 'uploads'), {
+      dotfiles: 'deny',
+      index: false,
+      setHeaders: (response) =>
+        response.setHeader('X-Content-Type-Options', 'nosniff'),
+    }),
+  );
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Database Office API')
@@ -35,28 +61,14 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
 
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, swaggerDocument, {
-    swaggerOptions: {
-      tagsSorter: 'alpha',
-      operationsSorter: (
-        operationA: { get: (key: string) => string },
-        operationB: { get: (key: string) => string },
-      ) => {
-        const methodOrder: Record<string, number> = {
-          post: 1,
-          get: 2,
-          patch: 3,
-          delete: 4,
-        };
+  const isSwaggerEnabled =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ENABLE_SWAGGER === 'true';
 
-        const methodA = operationA.get('method').toLowerCase();
-        const methodB = operationB.get('method').toLowerCase();
-
-        return (methodOrder[methodA] ?? 99) - (methodOrder[methodB] ?? 99);
-      },
-    },
-  });
+  if (isSwaggerEnabled) {
+    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, swaggerDocument);
+  }
 
   await app.listen(port);
 
@@ -71,7 +83,9 @@ async function bootstrap() {
     '================================================',
   );
   console.log(` Server URL   : http://localhost:${port}`);
-  console.log(` Swagger API  : http://localhost:${port}/api/docs`);
+  if (isSwaggerEnabled) {
+    console.log(` Swagger API  : http://localhost:${port}/api/docs`);
+  }
   console.log(` Environment  : ${process.env.NODE_ENV ?? 'development'}`);
   console.log(' Developed by : dony putra perkasa (owner)');
   console.log(

@@ -53,6 +53,11 @@ export class AssetsService {
     return this.prisma.schoolAsset.findMany({
       where: {
         schoolId: resolvedSchoolId,
+        school: {
+          is: {
+            archivedAt: null,
+          },
+        },
       },
       include: {
         school: true,
@@ -224,8 +229,8 @@ export class AssetsService {
   }
 
   private async ensureSchoolExists(schoolId: string) {
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
+    const school = await this.prisma.school.findFirst({
+      where: { archivedAt: null, id: schoolId },
       select: { id: true },
     });
 

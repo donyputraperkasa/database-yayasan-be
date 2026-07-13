@@ -71,6 +71,7 @@ export class EmployeesService {
       where: {
         schoolId: resolvedSchoolId,
         type,
+        school: { archivedAt: null },
       },
       include: {
         school: true,
@@ -368,8 +369,8 @@ export class EmployeesService {
   }
 
   private async ensureSchoolExists(schoolId: string) {
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
+    const school = await this.prisma.school.findFirst({
+      where: { archivedAt: null, id: schoolId },
       select: { id: true },
     });
 

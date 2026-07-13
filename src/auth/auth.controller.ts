@@ -2,13 +2,16 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Request } from 'express';
+import type { Request, Response } from 'express';
+import { clearAuthCookie, setAuthCookie } from '../common/auth/auth-cookie';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { AuthService } from './auth.service';
@@ -26,13 +29,22 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const session = await this.authService.login(dto);
+    setAuthCookie(response, session.accessToken);
+
+    return { user: session.user };
   }
 
   @Post('bootstrap-owner')
-  bootstrapOwner(@Body() dto: BootstrapOwnerDto) {
-    return this.authService.bootstrapOwner(dto);
+  bootstrapOwner(
+    @Body() dto: BootstrapOwnerDto,
+    @Headers('x-bootstrap-secret') bootstrapSecret?: string,
+  ) {
+    return this.authService.bootstrapOwner(dto, bootstrapSecret);
   }
 
   @ApiBearerAuth()
@@ -45,10 +57,27 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Patch('change-password')
-  changePassword(
+  async changePassword(
     @Req() request: RequestWithUser,
     @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    return this.authService.changePassword(request.user.sub, dto);
+    const result = await this.authService.changePassword(request.user.sub, dto);
+    clearAuthCookie(response);
+
+    return result;
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  async logout(
+    @Req() request: RequestWithUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.authService.logout(request.user);
+    clearAuthCookie(response);
+
+    return { message: 'Logout berhasil' };
   }
 }

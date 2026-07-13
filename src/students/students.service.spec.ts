@@ -11,6 +11,7 @@ import { StudentsService } from './students.service';
 
 type MockPrisma = {
   school: {
+    findFirst: jest.Mock;
     findUnique: jest.Mock;
   };
   student: {
@@ -47,6 +48,7 @@ describe('StudentsService', () => {
   beforeEach(() => {
     prisma = {
       school: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'school-1' }),
         findUnique: jest.fn().mockResolvedValue({ id: 'school-1' }),
       },
       student: {
@@ -81,9 +83,8 @@ describe('StudentsService', () => {
   });
 
   it('role school membuat siswa memakai schoolId dari token', async () => {
-    prisma.school.findUnique
-      .mockResolvedValueOnce({ id: 'school-token' })
-      .mockResolvedValueOnce({ canEdit: true });
+    prisma.school.findFirst.mockResolvedValueOnce({ id: 'school-token' });
+    prisma.school.findUnique.mockResolvedValueOnce({ canEdit: true });
 
     await service.create(
       {
@@ -94,8 +95,8 @@ describe('StudentsService', () => {
       schoolUser,
     );
 
-    expect(prisma.school.findUnique).toHaveBeenCalledWith({
-      where: { id: 'school-token' },
+    expect(prisma.school.findFirst).toHaveBeenCalledWith({
+      where: { archivedAt: null, id: 'school-token' },
       select: { id: true },
     });
     expect(prisma.school.findUnique).toHaveBeenCalledWith({
@@ -118,6 +119,7 @@ describe('StudentsService', () => {
         where: {
           schoolId: 'school-token',
           className: '6A',
+          school: { archivedAt: null },
         },
       }),
     );

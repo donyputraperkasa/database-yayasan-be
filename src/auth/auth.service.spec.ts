@@ -1,4 +1,5 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Role } from '../common/enums/role.enum';
@@ -17,10 +18,15 @@ type MockJwtService = {
   signAsync: jest.Mock;
 };
 
+type MockConfigService = {
+  get: jest.Mock;
+};
+
 describe('AuthService', () => {
   let service: AuthService;
   let usersService: MockUsersService;
   let jwtService: MockJwtService;
+  let configService: MockConfigService;
 
   beforeEach(() => {
     usersService = {
@@ -33,10 +39,14 @@ describe('AuthService', () => {
     jwtService = {
       signAsync: jest.fn().mockResolvedValue('access-token'),
     };
+    configService = {
+      get: jest.fn().mockReturnValue('bootstrap-secret'),
+    };
 
     service = new AuthService(
       usersService as unknown as UsersService,
       jwtService as unknown as JwtService,
+      configService as unknown as ConfigService,
     );
   });
 
@@ -114,16 +124,32 @@ describe('AuthService', () => {
     expect(usersService.registerLoginFailure).toHaveBeenCalled();
   });
 
-  it('bootstrapOwner meneruskan request ke UsersService', () => {
+  it('bootstrapOwner meneruskan request jika secret valid', () => {
     usersService.createBootstrapOwner.mockReturnValue({ id: 'owner-1' });
 
     expect(
-      service.bootstrapOwner({
-        name: 'Owner',
-        email: 'owner@mail.com',
-        password: 'password123',
-      }),
+      service.bootstrapOwner(
+        {
+          name: 'Owner',
+          email: 'owner@mail.com',
+          password: 'password123',
+        },
+        'bootstrap-secret',
+      ),
     ).toEqual({ id: 'owner-1' });
+  });
+
+  it('bootstrapOwner menolak secret yang salah', () => {
+    expect(() =>
+      service.bootstrapOwner(
+        {
+          name: 'Owner',
+          email: 'owner@mail.com',
+          password: 'password123',
+        },
+        'secret-salah',
+      ),
+    ).toThrow(ForbiddenException);
   });
 
   it('changePassword meneruskan request ke UsersService', () => {

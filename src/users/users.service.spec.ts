@@ -12,7 +12,7 @@ import { UsersService } from './users.service';
 
 type MockPrisma = {
   school: {
-    findUnique: jest.Mock;
+    findFirst: jest.Mock;
   };
   user: {
     count: jest.Mock;
@@ -38,7 +38,7 @@ describe('UsersService', () => {
   beforeEach(() => {
     prisma = {
       school: {
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
       user: {
         count: jest.fn(),
@@ -82,7 +82,7 @@ describe('UsersService', () => {
   });
 
   it('menolak create user school jika sekolah tidak ditemukan', async () => {
-    prisma.school.findUnique.mockResolvedValue(null);
+    prisma.school.findFirst.mockResolvedValue(null);
 
     await expect(
       service.create({
